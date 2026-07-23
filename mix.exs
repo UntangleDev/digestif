@@ -1,7 +1,7 @@
 defmodule Digestif.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
 
   def project do
     [
@@ -9,6 +9,8 @@ defmodule Digestif.MixProject do
       version: @version,
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
+      # Optional backends may be absent in consuming applications.
+      elixirc_options: [infer_signatures: [:argon2_elixir]],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: "Robust password hashing with a small Elixir API",
@@ -29,8 +31,8 @@ defmodule Digestif.MixProject do
 
   defp deps do
     [
-      {:pbkdf2_elixir, "~> 2.3"},
       {:argon2_elixir, "~> 4.0"},
+      {:pbkdf2_elixir, "~> 2.3", optional: true},
       {:bcrypt_elixir, "~> 3.0", optional: true},
       {:stream_data, "~> 1.2", only: [:dev, :test]},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},

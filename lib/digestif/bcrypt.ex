@@ -9,7 +9,8 @@ defmodule Digestif.Bcrypt do
   so existing `$2a$` and `$2b$` hashes — and PHP crypt_blowfish `$2y$`
   hashes, which verify by normalizing the prefix for the backend only —
   keep working and upgrade to the primary algorithm on the next successful
-  login. PBKDF2 and Argon2id remain the documented primary choices.
+  login. Argon2id is the recommended primary algorithm; optional PBKDF2
+  remains available for environments that specifically require it.
 
   `:log_rounds` (default `12`, floor `10`) is the cost used for new hashes
   and dummy work. `:max_cost` (default `16`, ceiling `31`) bounds the cost

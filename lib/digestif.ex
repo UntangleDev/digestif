@@ -16,6 +16,9 @@ defmodule Digestif do
         hasher: {Digestif.Argon2id, []},
         legacy_hashers: [{Digestif.PBKDF2, []}]
 
+  PBKDF2 and bcrypt require their corresponding optional backend
+  dependencies before their adapters can be configured.
+
   `verify?/2` dispatches only to the configured primary hasher and explicit
   legacy hashers. A successful legacy verification is therefore visible to
   `needs_rehash?/1`, allowing the application to replace the stored hash.

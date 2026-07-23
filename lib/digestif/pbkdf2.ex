@@ -2,11 +2,12 @@ defmodule Digestif.PBKDF2 do
   @moduledoc """
   PBKDF2-HMAC-SHA-256 password hashing backed by `pbkdf2_elixir`.
 
-  `pbkdf2_elixir` is a required Digestif dependency and owns salt
-  generation, key derivation, the modular (passlib-style) encoded format,
-  and verification. Digestif owns adapter dispatch, configuration policy,
-  transparent migration, and the minimal resource preflight described
-  below.
+  `pbkdf2_elixir` is optional. Add `{:pbkdf2_elixir, "~> 2.3"}` to the
+  host application's dependencies before configuring this adapter. The
+  backend owns salt generation, key derivation, the modular
+  (passlib-style) encoded format, and verification. Digestif owns adapter
+  dispatch, configuration policy, transparent migration, and the minimal
+  resource preflight described below.
 
   Hashes are always minted explicitly as HMAC-SHA-256 with a 16-byte salt
   and a 32-byte derived key — the backend's HMAC-SHA-512/160,000-round

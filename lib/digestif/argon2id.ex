@@ -3,8 +3,9 @@ defmodule Digestif.Argon2id do
   Argon2id password hashing backed by the required `argon2_elixir`
   dependency.
 
-  This is Digestif's default adapter. `Digestif.PBKDF2` remains available
-  for compatibility and environments with a specific PBKDF2 requirement.
+  This is Digestif's default adapter. The optional `Digestif.PBKDF2`
+  adapter remains available for compatibility and environments with a
+  specific PBKDF2 requirement.
 
   The defaults are `m_cost: 15`, `t_cost: 2`, and `parallelism: 1`.
   `argon2_elixir` expresses `m_cost` as the base-2 exponent of kibibytes, so

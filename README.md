@@ -57,11 +57,13 @@ hash. Create and persist a new hash with the primary hasher.
 
 ## Algorithms
 
-Argon2id and PBKDF2 are included by default. `argon2_elixir` compiles a
-native extension, so deployments need a C toolchain when precompiled
-artifacts are unavailable. Bcrypt is optional:
+Argon2id is included by default. `argon2_elixir` compiles a native extension,
+so deployments need a C toolchain when precompiled artifacts are unavailable.
+PBKDF2 and bcrypt support are optional; add only the backends the application
+uses:
 
 ```elixir
+{:pbkdf2_elixir, "~> 2.3"}
 {:bcrypt_elixir, "~> 3.0"}
 ```
 
