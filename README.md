@@ -1,5 +1,9 @@
 # Digestif
 
+[![CI](https://github.com/UntangleDev/digestif/actions/workflows/ci.yml/badge.svg)](https://github.com/UntangleDev/digestif/actions/workflows/ci.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/digestif.svg)](https://hex.pm/packages/digestif)
+[![HexDocs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/digestif)
+
 Digestif is a password-hashing library with a deliberately small application
 API and strict resource bounds around stored hashes.
 
