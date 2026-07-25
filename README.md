@@ -22,7 +22,7 @@ The default is Argon2id with 32 MiB of memory, two iterations, and one lane:
 ```elixir
 def deps do
   [
-    {:digestif, "~> 0.2"}
+    {:digestif, "~> 0.3"}
   ]
 end
 ```
