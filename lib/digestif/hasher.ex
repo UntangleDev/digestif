@@ -19,14 +19,90 @@ defmodule Digestif.Hasher do
 
   @type t :: {module(), keyword()}
 
+  @doc """
+  Hashes `value` under `options`, returning `{:ok, encoded_hash}`.
+
+  The encoded hash must be self-describing: later verification routes on the
+  algorithm identifier the hash carries, so what `hash/2` emits and what
+  `c:algorithm/0` returns have to agree. Raise on invalid options rather than
+  mint a hash the same configuration cannot verify.
+  """
   @callback hash(value :: String.t(), options :: keyword()) :: {:ok, String.t()}
+
+  @doc """
+  Returns whether `value` matches `encoded_hash` under `options`.
+
+  The dispatcher sends an unrecognised algorithm identifier to the *primary*
+  hasher, so a primary implementation is handed foreign and malformed
+  encodings and must fail closed as `false` — after work indistinguishable in
+  time from a real comparison, never a fast structural reject that leaks, by
+  latency, whether the hash was even one of its own. Compare digests with
+  `:crypto.hash_equals/2`, not `==`.
+  """
   @callback verify(value :: String.t(), encoded_hash :: String.t(), options :: keyword()) ::
               boolean()
+
+  @doc """
+  Does the same work as `c:verify/3` against a dummy hash, then returns `false`.
+
+  This is the timing defence for a caller who names no stored hash — an
+  unknown user. "No such account" and "wrong password" must take the same
+  time, or the difference enumerates accounts. Returning anything truthy here
+  would authenticate every such caller, so the return is `false`, always.
+  """
   @callback no_user_verify(value :: String.t(), options :: keyword()) :: false
+
+  @doc """
+  Returns the self-describing algorithm identifier this hasher emits and
+  dispatches on, e.g. `"argon2id"`.
+
+  It must be the identifier segment of every hash `c:hash/2` mints, and it must
+  be unique across a configured set — dispatch selects a hasher by this value,
+  never by list order. A hasher listed under `:legacy_hashers` must implement
+  it; a primary-only hasher that never needs to be distinguished from others
+  may omit it and receive every unrecognised encoding.
+  """
   @callback algorithm() :: String.t()
+
+  @doc """
+  Returns further stored identifiers this hasher also verifies, e.g. bcrypt's
+  `"2a"` and `"2y"` for a `"2b"` hasher.
+
+  Aliases share `c:algorithm/0`'s uniqueness rule: within one configured set,
+  no two hashers may claim the same identifier or alias, so dispatch stays
+  unambiguous.
+  """
   @callback algorithm_aliases() :: [String.t()]
+
+  @doc """
+  Returns whether `encoded_hash` is weaker than `options` and should be
+  replaced.
+
+  Consulted only for the primary hasher, and only after a successful verify;
+  a legacy hash always needs rehashing without asking. The dispatcher treats a
+  raise or a non-boolean result as `false`, but that is a safety net, not a
+  contract to lean on — decide deliberately.
+  """
   @callback needs_rehash?(encoded_hash :: String.t(), options :: keyword()) :: boolean()
+
+  @doc """
+  Returns `:ok` for a valid `options` list, or raises to reject it.
+
+  Runs at configuration time, before any password is hashed, so a
+  misconfiguration fails at startup rather than at the first login. This is the
+  boundary check that lets `c:hash/2` and `c:verify/3` trust the options they
+  are given.
+  """
   @callback validate_options!(options :: keyword()) :: :ok
+
+  @doc """
+  Returns the number of leading password bytes this algorithm distinguishes.
+
+  Implement it only for an algorithm that truncates — bcrypt at 72 bytes. A
+  host that makes such a hasher primary must cap accepted passwords at this
+  limit; otherwise two distinct passwords sharing a prefix verify
+  interchangeably. Omitting the callback declares no limit.
+  """
   @callback password_byte_limit() :: pos_integer()
 
   @optional_callbacks algorithm: 0,

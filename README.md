@@ -27,6 +27,12 @@ def deps do
 end
 ```
 
+> #### CAUTION {: .warning}
+>
+> Digestif is a work in progress and has not reached a stable 1.0 release.
+> The API, configuration, and hash encodings may change without a migration
+> path before then. Do not use it in production until a version 1.0 release.
+
 ## Configuration
 
 Select one primary hasher in application configuration:
