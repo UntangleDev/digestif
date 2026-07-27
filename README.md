@@ -22,7 +22,7 @@ The default is Argon2id with 32 MiB of memory, two iterations, and one lane:
 ```elixir
 def deps do
   [
-    {:digestif, "~> 0.3"}
+    {:digestif, "~> 0.4"}
   ]
 end
 ```
@@ -69,11 +69,11 @@ hash. Create and persist a new hash with the primary hasher.
 
 Argon2id is included by default. `argon2_elixir` compiles a native extension,
 so deployments need a C toolchain when precompiled artifacts are unavailable.
-PBKDF2 and bcrypt support are optional; add only the backends the application
-uses:
+PBKDF2 uses OTP `:crypto` and requires no additional dependency. Bcrypt support
+is optional; add its backend only when the application needs to migrate
+existing bcrypt hashes:
 
 ```elixir
-{:pbkdf2_elixir, "~> 2.3"}
 {:bcrypt_elixir, "~> 3.0"}
 ```
 

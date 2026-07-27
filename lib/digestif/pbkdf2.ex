@@ -1,24 +1,20 @@
 defmodule Digestif.PBKDF2 do
   @moduledoc """
-  PBKDF2-HMAC-SHA-256 password hashing backed by `pbkdf2_elixir`.
+  PBKDF2-HMAC-SHA-256 password hashing backed by OTP `:crypto`.
 
-  `pbkdf2_elixir` is optional. Add `{:pbkdf2_elixir, "~> 2.3"}` to the
-  host application's dependencies before configuring this adapter. The
-  backend owns salt generation, key derivation, the modular
-  (passlib-style) encoded format, and verification. Digestif owns adapter
-  dispatch, configuration policy, transparent migration, and the minimal
-  resource preflight described below.
+  OTP owns salt generation and key derivation. Digestif owns the narrow
+  password-hash layer around it: the modular (passlib-style) encoding,
+  constant-time verification, configuration policy, transparent migration,
+  and the resource preflight described below. The encoding remains compatible
+  with hashes minted by `pbkdf2_elixir`: unpadded Base64 with `.` in place of
+  `+`.
 
   Hashes are always minted explicitly as HMAC-SHA-256 with a 16-byte salt
-  and a 32-byte derived key — the backend's HMAC-SHA-512/160,000-round
-  defaults are never inherited. `:iterations` (default 600,000) is the
-  round count for new hashes and dummy work, translated once to the
-  backend's `:rounds` option; the validator rejects fewer than 600,000,
-  the OWASP minimum for PBKDF2-HMAC-SHA-256. Do not tune below the floor
-  for tests; use a deliberately cheap custom test hasher instead.
-  `pbkdf2_elixir` derives
-  in pure Elixir rather than through OTP's native `:crypto` PBKDF2, so
-  benchmark login latency on production hardware before raising
+  and a 32-byte derived key. `:iterations` (default 600,000) is the round
+  count for new hashes and dummy work; the validator rejects fewer than
+  600,000, the OWASP minimum for PBKDF2-HMAC-SHA-256. Do not tune below
+  the floor for tests; use a deliberately cheap custom test hasher instead.
+  Benchmark login latency on production hardware before raising
   `:iterations`.
 
   Stored hashes are held to a verification budget: `:max_iterations`
@@ -34,32 +30,29 @@ defmodule Digestif.PBKDF2 do
   ## Trust boundary
 
   Stored hashes are application-controlled database values, not untrusted
-  network input. This adapter is a minimal resource preflight, defence in
-  depth for corrupted, imported, or unexpectedly modified values: it
-  bounds the total encoded length before any other work, extracts only
-  the algorithm identifier and round count for the budget decision, and
-  hands everything else to `pbkdf2_elixir`, which owns complete format
-  parsing and cryptographic validation. Values the preflight rejects fail
-  closed after the configured dummy work, and malformed values below its
-  ceilings are the backend's to reject — the backend signals rejection by
-  raising, which this adapter normalizes to the same fail-closed dummy
-  path.
+  network input. This adapter bounds the total encoded length before any
+  other inspection and extracts only the algorithm identifier and round
+  count for the budget decision. Values the preflight rejects fail closed
+  after the configured dummy work. Values within that budget must then
+  contain a non-empty salt and one 32-byte digest in the passlib-adapted
+  Base64 alphabet, both canonically encoded; malformed values take the same
+  dummy path.
 
   Hashes minted by Bonafide's pre-extraction, pre-backend adapter used
   URL-safe Base64 for the salt and digest segments and are not accepted by
-  the backend's passlib-style decoder.
+  this passlib-compatible decoder.
   """
 
   @behaviour Digestif.Hasher
 
   @algorithm "pbkdf2-sha256"
-  @backend Pbkdf2
 
   @default_iterations 600_000
   @minimum_iterations 600_000
   @maximum_iterations 10_000_000
   # The conventional salt and derived-key sizes minted hashes always use.
   @salt_len 16
+  @minimum_salt_length 1
   @derived_key_length 32
   # Total encoded ceiling checked before any other inspection: the
   # algorithm label, an 8-digit round count, and the conventional salt and
@@ -67,14 +60,15 @@ defmodule Digestif.PBKDF2 do
   # imported passlib values with larger salts. Longer values fail closed
   # without input-proportional work.
   @maximum_encoded_length 160
+  @dummy_salt <<0::128>>
+  @dummy_digest <<0::256>>
   # Just enough fixed structure to find the fields Digestif's resource
   # policy needs — the digest identifier for dispatch and the round count
-  # for the budget decision. Every other validity question belongs to the
-  # backend.
-  @phc_prefix ~r/\A\$pbkdf2-sha256\$(\d{1,8})\$/
+  # for the budget decision. Full format parsing happens only after these
+  # resource bounds pass.
+  @phc_prefix ~r/\A\$pbkdf2-sha256\$(0|[1-9]\d{0,7})\$/
 
   @default_options [
-    backend: @backend,
     iterations: @default_iterations,
     max_iterations: nil
   ]
@@ -85,28 +79,27 @@ defmodule Digestif.PBKDF2 do
   @impl true
   def hash(password, options) when is_binary(password) and is_list(options) do
     normalized = normalize_options!(options)
-    backend = backend!(normalized.backend)
+    salt = :crypto.strong_rand_bytes(@salt_len)
+    digest = derive(password, salt, normalized.iterations)
 
-    encoded = apply(backend, :hash_pwd_salt, [password, normalized.backend_options])
-    {:ok, ensure_phc!(encoded)}
+    {:ok, encode_hash(normalized.iterations, salt, digest)}
   end
 
   @impl true
   def verify(password, encoded_hash, options)
       when is_binary(password) and is_binary(encoded_hash) and is_list(options) do
     normalized = normalize_options!(options)
-    backend = backend!(normalized.backend)
 
-    case parse_hash(encoded_hash, normalized) do
-      {:ok, _rounds} -> verify_parsed(backend, password, encoded_hash, normalized)
-      :error -> dummy_verify(backend, normalized)
+    case preflight_hash(encoded_hash, normalized) do
+      {:ok, iterations} -> verify_preflighted(password, encoded_hash, iterations, normalized)
+      :error -> dummy_verify(password, normalized)
     end
   end
 
   @impl true
-  def no_user_verify(_password, options) when is_list(options) do
+  def no_user_verify(password, options) when is_binary(password) and is_list(options) do
     normalized = normalize_options!(options)
-    dummy_verify(backend!(normalized.backend), normalized)
+    dummy_verify(password, normalized)
   end
 
   @doc """
@@ -118,7 +111,7 @@ defmodule Digestif.PBKDF2 do
   def needs_rehash?(encoded_hash, options \\ []) when is_binary(encoded_hash) do
     normalized = normalize_options!(options)
 
-    case parse_hash(encoded_hash, normalized) do
+    case preflight_hash(encoded_hash, normalized) do
       {:ok, rounds} -> rounds != normalized.iterations
       :error -> true
     end
@@ -128,42 +121,87 @@ defmodule Digestif.PBKDF2 do
   @impl true
   @spec validate_options!(keyword()) :: :ok
   def validate_options!(options) when is_list(options) do
-    normalized = normalize_options!(options)
-    backend!(normalized.backend)
+    normalize_options!(options)
     :ok
   end
 
-  # The backend rejects malformed segments below the preflight ceilings by
-  # raising; normalize every rejection to the fail-closed dummy path
-  # rather than reproducing the backend's parser to predict it.
-  defp verify_parsed(backend, password, encoded_hash, normalized) do
-    apply(backend, :verify_pass, [password, encoded_hash])
-  rescue
-    _exception -> dummy_verify(backend, normalized)
-  end
+  defp verify_preflighted(password, encoded_hash, iterations, normalized) do
+    case decode_hash(encoded_hash) do
+      {:ok, salt, expected_digest} ->
+        actual_digest = derive(password, salt, iterations)
+        :crypto.hash_equals(actual_digest, expected_digest)
 
-  defp dummy_verify(backend, normalized) do
-    apply(backend, :no_user_verify, [normalized.backend_options])
-    false
-  end
-
-  defp backend!(backend) when is_atom(backend) do
-    if Code.ensure_loaded?(backend) and
-         function_exported?(backend, :hash_pwd_salt, 2) and
-         function_exported?(backend, :verify_pass, 2) and
-         function_exported?(backend, :no_user_verify, 1) do
-      backend
-    else
-      raise ArgumentError,
-            "Digestif.PBKDF2 requires the :pbkdf2_elixir dependency"
+      :error ->
+        dummy_verify(password, normalized)
     end
   end
 
-  defp backend!(_backend), do: raise(ArgumentError, ":backend must be a module")
+  defp dummy_verify(password, normalized) do
+    actual_digest = derive(password, @dummy_salt, normalized.iterations)
+
+    # A dummy credential never authenticates, including in the vanishingly
+    # unlikely event that its derived value equals the fixed comparison value.
+    case :crypto.hash_equals(actual_digest, @dummy_digest) do
+      true -> false
+      false -> false
+    end
+  end
+
+  defp derive(password, salt, iterations) do
+    :crypto.pbkdf2_hmac(:sha256, password, salt, iterations, @derived_key_length)
+  end
+
+  defp encode_hash(iterations, salt, digest) do
+    "$#{@algorithm}$#{iterations}$#{encode_adapted64(salt)}$#{encode_adapted64(digest)}"
+  end
+
+  defp encode_adapted64(binary) do
+    encoded = Base.encode64(binary, padding: false)
+    :binary.replace(encoded, "+", ".", [:global])
+  end
+
+  defp decode_adapted64(encoded) do
+    # OTP's standard decoder accepts `+` and optional `=` padding. Neither is
+    # part of the adapted alphabet pbkdf2_elixir used, so reject them before
+    # translating `.` back to the standard alphabet.
+    if adapted64?(encoded) do
+      translated = :binary.replace(encoded, ".", "+", [:global])
+      Base.decode64(translated, padding: false)
+    else
+      :error
+    end
+  end
+
+  defp adapted64?(<<>>), do: true
+
+  defp adapted64?(<<character, rest::binary>>)
+       when character in ?A..?Z or character in ?a..?z or character in ?0..?9 or
+              character in ~c"./",
+       do: adapted64?(rest)
+
+  defp adapted64?(_invalid), do: false
+
+  defp decode_hash(encoded_hash) do
+    case :binary.split(encoded_hash, "$", [:global]) do
+      [<<>>, @algorithm, _iterations, encoded_salt, encoded_digest] ->
+        with {:ok, salt} when byte_size(salt) >= @minimum_salt_length <-
+               decode_adapted64(encoded_salt),
+             true <- encode_adapted64(salt) == encoded_salt,
+             {:ok, digest} when byte_size(digest) == @derived_key_length <-
+               decode_adapted64(encoded_digest),
+             true <- encode_adapted64(digest) == encoded_digest do
+          {:ok, salt, digest}
+        else
+          _malformed -> :error
+        end
+
+      _malformed ->
+        :error
+    end
+  end
 
   defp normalize_options!(options) do
     options = Keyword.validate!(options, @default_options)
-    backend = Keyword.fetch!(options, :backend)
     iterations = integer_option!(options, :iterations, @minimum_iterations, @maximum_iterations)
 
     # The budget may not fall below the configured cost — every hash this
@@ -183,16 +221,8 @@ defmodule Digestif.PBKDF2 do
       end
 
     %{
-      backend: backend,
       iterations: iterations,
-      max_iterations: max_iterations,
-      backend_options: [
-        rounds: iterations,
-        digest: :sha256,
-        length: @derived_key_length,
-        salt_len: @salt_len,
-        format: :modular
-      ]
+      max_iterations: max_iterations
     }
   end
 
@@ -207,26 +237,17 @@ defmodule Digestif.PBKDF2 do
     end
   end
 
-  defp ensure_phc!(<<"$pbkdf2-sha256$", remainder::binary>> = encoded)
-       when byte_size(remainder) > 0,
-       do: encoded
-
-  defp ensure_phc!(_unexpected) do
-    raise ArgumentError, "pbkdf2_elixir returned an unexpected non-PBKDF2-SHA-256 hash"
-  end
-
-  defp parse_hash(encoded_hash, _normalized)
+  defp preflight_hash(encoded_hash, _normalized)
        when byte_size(encoded_hash) > @maximum_encoded_length,
        do: :error
 
-  defp parse_hash(encoded_hash, normalized) do
+  defp preflight_hash(encoded_hash, normalized) do
     case Regex.run(@phc_prefix, encoded_hash, capture: :all_but_first) do
       [raw_rounds] ->
         rounds = String.to_integer(raw_rounds)
 
-        # A zero round count would send the backend's derivation loop past
-        # its terminating clause, so the floor of one round is a resource
-        # bound, not a validity opinion.
+        # OTP rejects zero, but checking it before the NIF keeps malformed
+        # stored data on the deliberate dummy path rather than an exception.
         if rounds >= 1 and rounds <= normalized.max_iterations do
           {:ok, rounds}
         else

@@ -16,8 +16,9 @@ defmodule Digestif do
         hasher: {Digestif.Argon2id, []},
         legacy_hashers: [{Digestif.PBKDF2, []}]
 
-  PBKDF2 and bcrypt require their corresponding optional backend
-  dependencies before their adapters can be configured.
+  PBKDF2 uses OTP `:crypto` and requires no additional dependency. Bcrypt
+  requires its optional backend dependency before its adapter can be
+  configured.
 
   `verify?/2` dispatches only to the configured primary hasher and explicit
   legacy hashers. A successful legacy verification is therefore visible to

@@ -1,10 +1,9 @@
 defmodule Digestif.HasherFuzzTest do
   # Fuzz and boundary coverage for the surfaces Digestif owns: the minimal
-  # preflight ceilings of the thin PBKDF2, Argon2id, and
-  # bcrypt adapters, and the dispatcher. The complete backend grammars
-  # belong to pbkdf2_elixir, argon2_elixir, and bcrypt_elixir and are
-  # deliberately not re-tested here: malformed values below the preflight
-  # ceilings are asserted only to delegate and fail closed.
+  # preflight ceilings of the PBKDF2, Argon2id, and bcrypt adapters, and the
+  # dispatcher. PBKDF2's narrow stored format lives in Digestif; the complete
+  # Argon2id and bcrypt grammars belong to their backends and are deliberately
+  # not re-tested here.
   use ExUnit.Case, async: true
   use ExUnitProperties
 
@@ -63,9 +62,8 @@ defmodule Digestif.HasherFuzzTest do
   describe "PBKDF2 preflight boundaries" do
     # The preflight extracts only the algorithm label and round count;
     # rounds past the verification budget — or a zero count the backend's
-    # derivation loop would never terminate on — fail closed without
-    # backend work. Salt and digest validity beyond them belong to
-    # pbkdf2_elixir (see Digestif.PBKDF2Test).
+    # derivation call rejects — fail closed through configured dummy work.
+    # Salt and digest validity is checked only after this resource bound.
     property "round counts outside 1..configured budget never parse" do
       out_of_range =
         one_of([

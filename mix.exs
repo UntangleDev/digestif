@@ -1,7 +1,7 @@
 defmodule Digestif.MixProject do
   use Mix.Project
 
-  @version "0.3.0"
+  @version "0.4.0"
 
   def project do
     [
@@ -22,7 +22,7 @@ defmodule Digestif.MixProject do
 
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :crypto]
     ]
   end
 
@@ -32,7 +32,6 @@ defmodule Digestif.MixProject do
   defp deps do
     [
       {:argon2_elixir, "~> 4.0"},
-      {:pbkdf2_elixir, "~> 2.3", optional: true},
       {:bcrypt_elixir, "~> 3.0", optional: true},
       {:stream_data, "~> 1.2", only: [:dev, :test]},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
@@ -44,14 +43,14 @@ defmodule Digestif.MixProject do
     [
       licenses: ["MIT"],
       links: %{"Documentation" => "https://hexdocs.pm/digestif"},
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE)
+      files: ~w(lib .formatter.exs mix.exs README.md CHANGELOG.md LICENSE)
     ]
   end
 
   defp docs do
     [
       main: "readme",
-      extras: ["README.md"],
+      extras: ["README.md", "CHANGELOG.md"],
       groups_for_modules: [
         "Hashing algorithms": [Digestif.Argon2id, Digestif.PBKDF2, Digestif.Bcrypt],
         Extension: [Digestif.Hasher]

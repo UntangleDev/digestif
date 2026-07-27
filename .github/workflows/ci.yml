@@ -47,7 +47,7 @@ jobs:
           MIX_ENV: no_optional_deps
         run: |
           mix compile --no-optional-deps --warnings-as-errors
-          mix run --no-compile -e 'false = Code.ensure_loaded?(Pbkdf2); hash = Digestif.hash("CI probe"); true = Digestif.verify?("CI probe", hash)'
+          mix run --no-compile -e 'false = Code.ensure_loaded?(Pbkdf2); false = Code.ensure_loaded?(Bcrypt); {:ok, hash} = Digestif.PBKDF2.hash("CI probe", []); true = Digestif.PBKDF2.verify("CI probe", hash, [])'
 
       - name: Compile without warnings
         run: mix compile --warnings-as-errors
