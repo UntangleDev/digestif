@@ -183,6 +183,8 @@ defmodule Digestif.PBKDF2Test do
           "$pbkdf2-sha256$600000$a$b$c$d",
           "$pbkdf2-sha256$600000$+A$#{valid_digest}",
           "$pbkdf2-sha256$600000$AA==$#{valid_digest}",
+          "$pbkdf2-sha256$600000$AA-$#{valid_digest}",
+          "$pbkdf2-sha256$600000$AA$#{String.duplicate("A", 42)}_",
           "$pbkdf2-sha256$600000$AA$AA",
           # A zero-length digest must never turn comparison into a vacuous
           # success for every password.
@@ -190,20 +192,6 @@ defmodule Digestif.PBKDF2Test do
         ] do
       refute PBKDF2.verify(@password, malformed, [])
     end
-  end
-
-  test "the previous Bonafide encoding remains an explicit storage break" do
-    # Minted by the pre-delegation adapter (URL-safe Base64 segments) for
-    # the password below. Passlib's alphabet does not include `-` or `_`.
-    old_format =
-      "$pbkdf2-sha256$600000$BW9z9ZnKOw2SaSthko6nEA$2VJRszKdukXVIaSN2Syh2p6knkDBn6gr9B-6UduF0ac"
-
-    refute PBKDF2.verify("probe password", old_format, [])
-
-    # The preflight reads only the algorithm label and round count, both of
-    # which the old encoding shares, so the rehash answer stays false;
-    # rehash decisions are only meaningful for hashes that verify.
-    refute PBKDF2.needs_rehash?(old_format, [])
   end
 
   test "configuration options are validated at configuration time" do

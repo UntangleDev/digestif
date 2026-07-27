@@ -37,10 +37,6 @@ defmodule Digestif.PBKDF2 do
   contain a non-empty salt and one 32-byte digest in the passlib-adapted
   Base64 alphabet, both canonically encoded; malformed values take the same
   dummy path.
-
-  Hashes minted by Bonafide's pre-extraction, pre-backend adapter used
-  URL-safe Base64 for the salt and digest segments and are not accepted by
-  this passlib-compatible decoder.
   """
 
   @behaviour Digestif.Hasher

@@ -1,7 +1,7 @@
 defmodule Digestif.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
+  @version "0.4.1"
 
   def project do
     [
@@ -42,7 +42,10 @@ defmodule Digestif.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"Documentation" => "https://hexdocs.pm/digestif"},
+      links: %{
+        "Documentation" => "https://hexdocs.pm/digestif",
+        "GitHub" => "https://github.com/UntangleDev/digestif"
+      },
       files: ~w(lib .formatter.exs mix.exs README.md CHANGELOG.md LICENSE)
     ]
   end

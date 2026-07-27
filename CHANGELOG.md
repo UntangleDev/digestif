@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.4.0 — Unreleased
+## 0.4.1 — 2026-07-27
+
+### Changed
+
+- Added the GitHub repository to the Hex package metadata.
+- Removed unrelated project-history references from the PBKDF2 documentation
+  and tests while retaining generic malformed-alphabet coverage.
+- Corrected the copyright holder in `LICENSE`.
+
+## 0.4.0 — 2026-07-27
 
 ### Changed
 
