@@ -4,6 +4,22 @@ defmodule DigestifTest do
   alias Digestif.{Hasher, PBKDF2}
   alias Digestif.TestHasher
 
+  defmodule NonBooleanVerifyHasher do
+    @behaviour Digestif.Hasher
+
+    @impl true
+    def algorithm, do: "non-boolean"
+
+    @impl true
+    def hash(_value, _options), do: {:ok, "$non-boolean$hash"}
+
+    @impl true
+    def verify(_value, _encoded_hash, result: result), do: result
+
+    @impl true
+    def no_user_verify(_value, _options), do: false
+  end
+
   setup do
     original_hasher = Application.get_env(:digestif, :hasher)
     original_legacy = Application.get_env(:digestif, :legacy_hashers)
@@ -52,6 +68,26 @@ defmodule DigestifTest do
     assert Digestif.verify?("password", legacy_hash)
     assert Digestif.needs_rehash?(legacy_hash)
     refute Digestif.verify?("password", unknown_hash)
+  end
+
+  test "non-boolean verification results raise instead of authenticating" do
+    message =
+      "hasher #{inspect(NonBooleanVerifyHasher)} returned a non-boolean result from verify/3; " <>
+        "fix verify/3 to return true or false"
+
+    for result <- [:error, {:error, :mismatch}] do
+      hasher = {NonBooleanVerifyHasher, [result: result]}
+
+      assert_raise RuntimeError, message, fn ->
+        Hasher.verify_with_hashers("wrong password", "$non-boolean$hash", hasher, [])
+      end
+
+      Application.put_env(:digestif, :hasher, hasher)
+
+      assert_raise RuntimeError, message, fn ->
+        Digestif.verify?("wrong password", "$non-boolean$hash")
+      end
+    end
   end
 
   test "hasher sets reject algorithm collisions" do

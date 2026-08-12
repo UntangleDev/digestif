@@ -116,7 +116,8 @@ defmodule Digestif.Hasher do
 
   Only the primary hasher and explicitly listed legacy hashers are eligible.
   Unknown or malformed algorithm identifiers fall back to the primary
-  hasher, which must fail closed for foreign encodings.
+  hasher, which must fail closed for foreign encodings. A hasher that violates
+  the boolean return contract raises rather than authenticating a truthy value.
   """
   @spec verify_with_hashers(String.t(), String.t(), t(), [t()]) :: {:ok, t()} | :error
   def verify_with_hashers(value, encoded_hash, primary, legacy_hashers)
@@ -124,9 +125,17 @@ defmodule Digestif.Hasher do
     validate_set!(primary, legacy_hashers)
     {module, options} = selected_hasher(encoded_hash, primary, legacy_hashers)
 
-    if module.verify(value, encoded_hash, options),
-      do: {:ok, {module, options}},
-      else: :error
+    case module.verify(value, encoded_hash, options) do
+      true ->
+        {:ok, {module, options}}
+
+      false ->
+        :error
+
+      _invalid ->
+        raise "hasher #{inspect(module)} returned a non-boolean result from verify/3; " <>
+                "fix verify/3 to return true or false"
+    end
   end
 
   @doc """

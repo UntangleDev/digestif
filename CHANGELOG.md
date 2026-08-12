@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2 — 2026-08-12
+
+### Fixed
+
+- Rejected non-boolean custom `verify/3` results instead of treating truthy
+  return values as successful authentication.
+
 ## 0.4.1 — 2026-07-27
 
 ### Changed
